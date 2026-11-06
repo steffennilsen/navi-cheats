@@ -1,0 +1,88 @@
+% mitmproxy, http, https, proxy, spy, sniff, intercept, debug, api, traffic, network, mitm
+
+; Three front-ends, same engine:
+;   mitmweb   → browser UI on :8081 (needs the ?token=... URL it prints)
+;   mitmproxy → terminal UI (arrows + Enter, q to go back, ? for help)
+;   mitmdump  → plain stdout, scriptable, good for logs
+; CA cert is created on first run in ~/.mitmproxy/
+
+# Start the web UI proxy (don't try to open a browser)
+mitmweb --set web_open_browser=false --listen-port <port>
+
+# Start the terminal UI proxy
+mitmproxy --listen-port <port>
+
+# Print every request/response with full headers and bodies
+mitmdump --listen-port <port> --flow-detail 3
+
+# Log all traffic to a file while watching it
+mitmdump --listen-port <port> --flow-detail 3 | tee <logfile>
+
+# Only show traffic to one host
+mitmdump --listen-port <port> --flow-detail 3 "~d <host>"
+
+# Only show failed requests (4xx/5xx) to one host
+mitmdump --listen-port <port> --flow-detail 2 "~d <host> & (~c 4.. | ~c 5..)"
+
+# Record flows to a file for later inspection
+mitmdump --listen-port <port> -w <flowfile> "~d <host>"
+
+# Read back a recorded flow file with full detail
+mitmdump -nr <flowfile> --flow-detail 3
+
+# Open a recorded flow file in the web UI
+mitmweb --set web_open_browser=false -r <flowfile>
+
+# Replay recorded requests against the real server
+mitmdump -n -C <flowfile> --flow-detail 2
+
+# Serve recorded responses instead of hitting the real server (offline mock)
+mitmdump --listen-port <port> -S <flowfile> --set server_replay_extra=kill
+
+# Don't intercept noisy hosts (e.g. self-update checks), regex
+mitmdump --listen-port <port> --flow-detail 3 --ignore-hosts '<ignore_regex>'
+
+# Run a Go / curl / most CLIs through mitmproxy
+HTTPS_PROXY=http://127.0.0.1:<port> HTTP_PROXY=http://127.0.0.1:<port> SSL_CERT_FILE=$HOME/.mitmproxy/mitmproxy-ca-cert.pem <cmd>
+
+# Run a Node.js CLI through mitmproxy
+HTTPS_PROXY=http://127.0.0.1:<port> HTTP_PROXY=http://127.0.0.1:<port> NODE_EXTRA_CA_CERTS=$HOME/.mitmproxy/mitmproxy-ca-cert.pem <cmd>
+
+# Run a Python (requests/httpx) CLI through mitmproxy
+HTTPS_PROXY=http://127.0.0.1:<port> HTTP_PROXY=http://127.0.0.1:<port> REQUESTS_CA_BUNDLE=$HOME/.mitmproxy/mitmproxy-ca-cert.pem SSL_CERT_FILE=$HOME/.mitmproxy/mitmproxy-ca-cert.pem <cmd>
+
+# Test that the proxy works with curl
+curl -sS -x http://127.0.0.1:<port> --cacert $HOME/.mitmproxy/mitmproxy-ca-cert.pem https://<host>/ -o /dev/null -w '%{http_code}\n'
+
+# Reverse proxy: point a tool at localhost instead of the real API
+mitmdump --mode reverse:https://<host> --listen-port <port> --flow-detail 3
+
+# Chain through a corporate proxy
+mitmdump --mode upstream:<upstream_proxy> --listen-port <port> --flow-detail 3
+
+# Capture a process that ignores proxy env vars (local mode; Linux needs a recent version + root)
+mitmdump --mode local:<process_name> --flow-detail 3
+
+# Mitti exporter: route its API calls through mitmproxy (it ignores HTTPS_PROXY)
+yq -i '.api.proxy_url = "http://127.0.0.1:<port>" | .api.tls_cert = strenv(HOME) + "/.mitmproxy/mitmproxy-ca-cert.pem"' mitti-exporter.yaml
+
+; Gotchas
+; - Only the self-update / GitHub call shows up? The tool has its own proxy setting
+;   (config file or flag) and ignores HTTPS_PROXY. Mitti exporter: api.proxy_url.
+; - TLS errors in the tool = it doesn't trust the mitmproxy CA. Use the env var for
+;   its runtime above, its own tls_cert / --cacert option, or a skip-verify flag.
+; - Cert-pinned apps (some mobile apps, a few CLIs) can't be intercepted this way.
+; - "gio: Operation not supported" on mitmweb start is harmless: it failed to open
+;   a browser. Open the printed URL (with ?token=) yourself.
+; - Remote box? ssh -L 8081:127.0.0.1:8081 user@host, then open the URL locally.
+; - Filter syntax: ~d domain, ~u url regex, ~m method, ~c status, ~q request,
+;   ~s response, ~h header, ~b body; combine with & | ! and ( ).
+; - In the UI: select a flow → export → "curl" to replay it next to your own call.
+
+$ port: printf '8080\n8888\n9090\n'
+$ host: printf 'api.mitti.com\napi.github.com\n'
+$ logfile: echo "traffic-$(date +%F-%H%M).log"
+$ flowfile: ls -t *.mitm 2>/dev/null; echo "flows-$(date +%F-%H%M).mitm"
+$ ignore_regex: printf '^(.+\\.)?github\\.com:443$\n^(.+\\.)?githubusercontent\\.com:443$\n'
+$ upstream_proxy: printf 'http://proxy.corp.example:3128\n'
+$ process_name: printf 'curl\nnode\npython\n'
