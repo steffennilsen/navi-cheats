@@ -1,0 +1,176 @@
+% yq, yaml, yml, toml, json, xml, csv, kubernetes, k8s, filter, query, transform, convert
+
+; This is mikefarah/yq, the Go version (`yq --version` shows v4.x).
+; Filters look like jq but aren't identical, so see the gotchas.
+; Output format follows the file extension. Override it with -o=json, -o=yaml, etc.
+
+# Pretty-print
+yq . <file>
+
+# Expand flow style and remove quotes where they aren't needed
+yq -P . <file>
+
+# Re-indent with a different width
+yq -I<indent> . <file>
+
+# Check that a file is valid (non-zero exit if not)
+yq . <file> > /dev/null
+
+# Print a value or section
+yq '<path>' <file>
+
+# Exit non-zero if a value is false, null, or missing (for scripts)
+yq -e '<path>' <file>
+
+# List top-level keys in their original order
+yq 'keys' <file>
+
+# List every path in the document
+yq '.. | path | join(".") | select(. != "")' <file>
+
+# Flatten to path=value lines (handy with grep)
+yq '.. | select(tag != "!!map" and tag != "!!seq") | (path | join(".")) + "=" + (. | tostring)' <file>
+
+# Find every value of a key, at any depth
+yq -N '.. | select(has("<key>")) | .<key>' <file>
+
+# Count items in a list
+yq '<array> | length' <file>
+
+# Filter a list: field equals a string
+yq '<array>[] | select(.<key> == "<value>")' <file>
+
+# Filter a list: field matches a case-insensitive regex
+yq '<array>[] | select(.<key> | test("(?i)<regex>"))' <file>
+
+# Get one field from each item of a list
+yq '<array> | map(.<key>)' <file>
+
+# Sort a list by a field
+yq '<array> | sort_by(.<key>)' <file>
+
+# Sort object keys, recursively (useful before diffing)
+yq 'sort_keys(..)' <file>
+
+# Set a string value (prints the result, file unchanged)
+VALUE="<value>" yq '<path> = strenv(VALUE)' <file>
+
+# Set a number, boolean, or null
+yq '<path> = <yaml_value>' <file>
+
+# Set a value from an existing environment variable
+yq '<path> = strenv(<env_var>)' <file>
+
+# Add an item to a list
+VALUE="<value>" yq '<array> += [strenv(VALUE)]' <file>
+
+# Delete a field
+yq 'del(<path>)' <file>
+
+# Set a string value and save it to the file (see gotchas first)
+VALUE="<value>" yq -i '<path> = strenv(VALUE)' <file>
+
+# Delete a field and save it to the file
+yq -i 'del(<path>)' <file>
+
+# Deep-merge two files (the second one wins)
+yq ea 'select(fi == 0) * select(fi == 1)' <file> <file2>
+
+# Convert a map to KEY=value lines
+yq '<path> | to_entries | .[] | .key + "=" + (.value | tostring)' <file>
+
+# Remove all comments
+yq '... comments=""' <file>
+
+# Expand anchors and aliases into plain values
+yq 'explode(.)' <file>
+
+# Build YAML from scratch
+yq -n '<path> = <yaml_value>'
+
+# Convert to JSON
+yq -o=json . <file>
+
+# Convert to compact one-line JSON
+yq -o=json -I=0 . <file>
+
+# Convert JSON to YAML
+yq -o=yaml . <json_file>
+
+# Convert a YAML or JSON list of objects to CSV
+yq -o=csv . <file>
+
+# Convert to a properties file
+yq -o=props . <file>
+
+# Convert to shell variable assignments
+yq -o=shell . <file>
+
+# Convert CSV to JSON
+yq -o=json . <csv_file>
+
+# Convert XML to JSON
+yq -o=json . <xml_file>
+
+# Multi-document: count the documents
+yq ea '[.] | length' <file>
+
+# Multi-document: get one document by position, starting from 0
+yq 'select(documentIndex == <n>)' <file>
+
+# Multi-document: change only one document, starting from 0
+VALUE="<value>" yq '(select(documentIndex == <n>) | <path>) = strenv(VALUE)' <file>
+
+# Multi-document: split into one file per document (Deployment-web.yml...)
+yq -s '.kind + "-" + .metadata.name' <file>
+
+# Kubernetes: list the kind and name of each resource
+yq -N '[.kind, .metadata.name] | @tsv' <file>
+
+# Kubernetes: get all resources of one kind
+yq 'select(.kind == "<kind>")' <file>
+
+# Kubernetes: list all container images
+yq -N '.. | select(has("image")) | .image' <file> | sort -u
+
+# TOML: print a value
+yq '<path>' <toml_file>
+
+# TOML: convert to JSON
+yq -o=json . <toml_file>
+
+# TOML: set a string value and save it to the file
+VALUE="<value>" yq -i '<path> = strenv(VALUE)' <toml_file>
+
+# Markdown: print a value from YAML front matter
+yq --front-matter=extract '<path>' <md_file>
+
+; Gotchas
+; - -i keeps comments and anchors, but still reformats. It normalizes indentation to
+;   2 spaces, indents lists, may drop blank lines, and reflows folded (>-) text.
+;   Check `git diff` after -i.
+; - Coming from jq: -s means split into files, not slurp. There's no --arg, $ENV, or
+;   empty. Use strenv(NAME) or env(NAME) for values, and ea to read multiple files.
+; - strenv(NAME) always gives a string. env(NAME) parses it, so 5 becomes a number.
+; - Case-insensitive regex goes in the pattern: test("(?i)abc"), not test("abc"; "i").
+; - A missing key gives null, not an error. Add -e to get a non-zero exit.
+; - Multi-document files run the filter once per document, and -i applies to all of them.
+; - Output can include --- between documents, which breaks piping. Add -N to remove it.
+; - Printing a section also prints its comments and anchors. Add '... comments=""' to
+;   the end of the filter to drop comments.
+; - * replaces lists when merging. Use *+ to append them instead.
+
+$ file: ls *.yaml *.yml *.json 2>/dev/null
+$ file2: ls *.yaml *.yml *.json 2>/dev/null
+$ json_file: ls *.json 2>/dev/null
+$ csv_file: ls *.csv 2>/dev/null
+$ xml_file: ls *.xml 2>/dev/null
+$ toml_file: ls *.toml 2>/dev/null
+$ md_file: ls *.md 2>/dev/null
+$ path: printf '.\n.metadata\n.metadata.name\n.spec\n'
+$ array: printf '.\n.items\n.spec.containers\n'
+$ indent: printf '2\n4\n'
+$ n: printf '0\n1\n'
+$ yaml_value: printf 'true\nfalse\nnull\n0\n'
+$ kind: printf 'Deployment\nService\nConfigMap\nSecret\nIngress\n'
+$ env_var: printf 'HOME\nUSER\n'

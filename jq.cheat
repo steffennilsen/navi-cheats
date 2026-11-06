@@ -1,0 +1,133 @@
+% jq, json, jsonl, ndjson, filter, query, transform, parse, csv
+
+; <array> is the path to a list: "." if the document is the list, or ".items" etc.
+; <key> is a plain field name. <path> is a full path like .items[0].name
+
+# Pretty-print
+jq . <file>
+
+# Compact to one line
+jq -c . <file>
+
+# Sort object keys (useful before diffing)
+jq -S . <file>
+
+# Check that a file is valid JSON (non-zero exit if not)
+jq empty <file>
+
+# Print a value as plain text, without JSON quotes
+jq -r '<path>' <file>
+
+# List top-level keys in their original order
+jq 'keys_unsorted' <file>
+
+# List every path in the document
+jq -r 'paths | map(tostring) | join(".")' <file>
+
+# Flatten to path=value lines (handy with grep)
+jq -r 'paths(scalars) as $p | "\($p | map(tostring) | join("."))=\(getpath($p))"' <file>
+
+# Find every value of a key, at any depth
+jq '.. | .<key>? // empty' <file>
+
+# Count items in a list
+jq '<array> | length' <file>
+
+# Get the first N items of a list
+jq '<array>[:<n>]' <file>
+
+# Filter a list: field equals a string
+jq --arg v '<value>' '<array>[] | select(.<key> == $v)' <file>
+
+# Filter a list: number is greater than N
+jq '<array>[] | select(.<key> > <n>)' <file>
+
+# Filter a list: field matches a case-insensitive regex
+jq --arg re '<regex>' '<array>[] | select(.<key> // "" | test($re; "i"))' <file>
+
+# Filter a list: field exists
+jq '<array>[] | select(has("<key>"))' <file>
+
+# Keep only some fields of each item (fields: id, name)
+jq '<array> | map({<fields>})' <file>
+
+# Sort a list by a field
+jq '<array> | sort_by(.<key>)' <file>
+
+# Sort a list by a field, descending
+jq '<array> | sort_by(.<key>) | reverse' <file>
+
+# List the distinct values of a field
+jq '<array> | map(.<key>) | unique' <file>
+
+# Count items per value of a field
+jq '<array> | group_by(.<key>) | map({value: .[0].<key>, count: length})' <file>
+
+# Sum a numeric field
+jq '<array> | map(.<key>) | add' <file>
+
+# Set a string value
+jq --arg v '<value>' '<path> = $v' <file>
+
+# Set a number, boolean, null, or other JSON value
+jq --argjson v '<json_value>' '<path> = $v' <file>
+
+# Delete a field
+jq 'del(<path>)' <file>
+
+# Remove nulls everywhere
+jq 'del(.. | nulls)' <file>
+
+# Parse a field that holds JSON as a string
+jq '<path> |= fromjson' <file>
+
+# Format a Unix timestamp field as a date
+jq '<path> |= todate' <file>
+
+# Edit a file in place (jq has no -i)
+jq '<filter>' <file> > <file>.tmp && mv <file>.tmp <file>
+
+# Deep-merge two files (the second one wins)
+jq -s '.[0] * .[1]' <file> <file2>
+
+# Convert a JSONL file to a JSON array
+jq -s . <file>
+
+# Convert a JSON array to JSONL
+jq -c '<array>[]' <file>
+
+# Convert a list of objects to CSV, with a header row
+jq -r '<array> | (map(keys_unsorted) | add | unique) as $cols | $cols, (.[] | [.[$cols[]]]) | @csv' <file>
+
+# Convert a list of objects to TSV, with a header row
+jq -r '<array> | (map(keys_unsorted) | add | unique) as $cols | $cols, (.[] | [.[$cols[]]]) | @tsv' <file>
+
+# Turn each line of a text file into an item in a JSON array
+jq -Rn '[inputs]' <file>
+
+# Build JSON from a shell value, with correct escaping
+jq -n --arg v '<value>' '{<key>: $v}'
+
+# Exit non-zero if a value is false, null, or missing (for scripts)
+jq -e '<path>' <file>
+
+# Pretty-print an API response
+curl -sS <url> | jq .
+
+; Gotchas
+; - Keys with dashes or dots need quotes: ."foo-bar", not .foo-bar
+; - --arg always passes a string. To compare numbers or booleans, use --argjson.
+; - A missing key gives null, not an error. Add ? to skip errors from wrong types: .a.b?
+; - A // B also falls back on false, not only on null.
+; - Never redirect to the file you're reading (jq . f > f): it empties the file first.
+; - -s reads all input into memory. For huge files, look at --stream.
+
+$ file: ls *.json *.jsonl *.ndjson 2>/dev/null
+$ file2: ls *.json 2>/dev/null
+$ array: printf '.\n.items\n.data\n.results\n'
+$ path: printf '.\n.items\n.data\n.name\n'
+$ n: printf '10\n100\n'
+$ json_value: printf 'true\nfalse\nnull\n0\n'
+$ fields: printf 'id, name\n'
+$ filter: printf '.\n'
+$ url: printf 'https://api.github.com/\n'

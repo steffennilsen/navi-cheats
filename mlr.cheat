@@ -1,0 +1,157 @@
+% mlr, miller, csv, tsv, json, jsonl, table, tabular, sort, filter, aggregate, convert
+
+; Format shortcuts: c=CSV, t=TSV, j=JSON, l=JSONL, p=aligned table, m=Markdown, x=vertical
+; --c2j means CSV in, JSON out. --icsv --ojson does the same thing the long way.
+; Chain verbs with "then". Field names in filters and expressions start with $.
+
+# View a CSV as an aligned table
+mlr --c2p --barred cat <file>
+
+# View a CSV one field per line (good for wide rows)
+mlr --c2x cat <file>
+
+# Get a per-column summary (types, min, max, mean, nulls)
+mlr --icsv --opprint summary <file>
+
+# List the column names
+mlr --icsv --ojson head -n 1 then put -q 'print joink($*, ",")' <file>
+
+# Count the rows
+mlr --icsv --ojson count <file>
+
+# Convert CSV to JSON
+mlr --c2j cat <file>
+
+# Convert CSV to JSONL
+mlr --c2l cat <file>
+
+# Convert CSV to TSV
+mlr --c2t cat <file>
+
+# Convert CSV to a Markdown table
+mlr --c2m cat <file>
+
+# Convert JSON to CSV (nested fields become a.b columns)
+mlr --j2c cat <json_file>
+
+# Convert JSON with mixed fields to CSV (fills in missing columns)
+mlr --j2c unsparsify <json_file>
+
+# Show the first N rows
+mlr --csv head -n <n> <file>
+
+# Show the first N rows per group
+mlr --csv head -n <n> -g <field> <file>
+
+# Show the last N rows
+mlr --csv tail -n <n> <file>
+
+# Keep only some columns (comma-separated, original order)
+mlr --csv cut -f <fields> <file>
+
+# Keep only some columns, in the order given
+mlr --csv cut -o -f <fields> <file>
+
+# Remove some columns
+mlr --csv cut -x -f <fields> <file>
+
+# Rename a column
+mlr --csv rename <field>,<new_name> <file>
+
+# Move columns to the front
+mlr --csv reorder -f <fields> <file>
+
+# Sort alphabetically by a column
+mlr --csv sort -f <field> <file>
+
+# Sort numerically by a column, descending
+mlr --csv sort -nr <field> <file>
+
+# Filter rows: column equals a string
+mlr --csv filter '$<field> == "<value>"' <file>
+
+# Filter rows: number is greater than N
+mlr --csv filter '$<field> > <n>' <file>
+
+# Filter rows: column matches a case-insensitive regex
+mlr --csv filter '$<field> =~ "<regex>"i' <file>
+
+# Add or replace a column with an expression
+mlr --csv put '$<new_name> = <expression>' <file>
+
+# Count rows per value of a column
+mlr --icsv --opprint count -g <field> then sort -nr count <file>
+
+# List the distinct values of a column
+mlr --csv cut -f <field> then uniq -g <field> <file>
+
+# Remove duplicate rows
+mlr --csv uniq -a <file>
+
+# Get stats for a numeric column
+mlr --icsv --opprint stats1 -a count,sum,mean,min,max -f <field> <file>
+
+# Get stats for a numeric column per group
+mlr --icsv --opprint stats1 -a count,sum,mean,min,max -f <field> -g <group_field> <file>
+
+# Get the top N rows by a numeric column, keeping all columns
+mlr --icsv --opprint top -n <n> -f <field> -a <file>
+
+# Inner join two CSVs on a shared column
+mlr --csv join -j <field> -f <file2> <file>
+
+# Left join: keep every row from the first file you pick
+mlr --csv join --ul -j <field> -f <file> then unsparsify <file2>
+
+# Stack CSVs with different columns
+mlr --csv unsparsify <file> <file2>
+
+# Split a column with multiple values into one row per value
+mlr --csv nest --explode --values --across-records -f <field> --nested-fs ';' <file>
+
+# Fill empty cells with a value
+mlr --csv fill-empty -v '<value>' <file>
+
+# Fill empty cells with the last non-empty value above
+mlr --csv fill-down -f <field> <file>
+
+# Convert a Unix timestamp column to an ISO date
+mlr --csv sec2gmt <field> <file>
+
+# Split into one file per value of a column (split_red.csv, split_blue.csv...)
+mlr --csv split -g <field> <file>
+
+# Read a CSV with a different separator
+mlr --csv --ifs '<separator>' --ofs ',' cat <file>
+
+# Read a CSV with no header row (columns become 1, 2, 3...)
+mlr --csv --implicit-csv-header --headerless-csv-output cat <file>
+
+# Read a CSV whose rows have too few or too many fields
+mlr --csv --allow-ragged-csv-input unsparsify <file>
+
+# Read a gzipped CSV
+mlr --csv --gzin cat <gz_file>
+
+# Edit a file in place (the verb's changes overwrite the file)
+mlr -I --csv sort -f <field> <file>
+
+; Gotchas
+; - A mistyped field name gives no error: filter returns nothing, cut prints blank
+;   lines, and sort leaves the rows in their original order. Check the header first.
+; - Column names with spaces need braces in expressions: ${first name}, not $first name.
+; - Miller infers types: 0xff and 1e5 are numbers, and JSON output shows 0xff as 255.
+;   Add -S to read every value as a string.
+; - Values with leading zeros like 007 are strings, so $code + 1 gives (error).
+;   Add -O to read them as numbers.
+; - sort -f is case-sensitive and -c ignores case. sort -nr puts non-numeric values first.
+; - Rows with different columns can stop CSV output with "schema change". Add unsparsify.
+; - fill-down -a means "only if the field is absent", so it skips empty cells.
+;   Use --all, not -a, to fill every column.
+
+$ file: ls *.csv 2>/dev/null
+$ file2: ls *.csv 2>/dev/null
+$ json_file: ls *.json *.jsonl 2>/dev/null
+$ gz_file: ls *.csv.gz 2>/dev/null
+$ n: printf '10\n100\n'
+$ separator: printf ';\n|\ntab\n'
