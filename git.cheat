@@ -1,0 +1,338 @@
+% git, vcs, version control, commit, branch, merge, rebase, undo, stash, log, remote
+
+; Written for git 2.53. HEAD = current commit, HEAD~1 = its parent, HEAD~3 = three back.
+; a..b = commits in b but not a. a...b = commits in either but not both.
+; Undo cheat: unstaged edits → restore, staged → restore --staged,
+; last commit → reset --soft HEAD~1, pushed commit → revert, "it's gone" → reflog.
+
+# Show status, short form with branch and ahead/behind
+git status -sb
+
+# Show the history as a graph of all branches
+git log --oneline --graph --decorate --all
+
+# Show history with date and author
+git log --format='%h %ad %an %s' --date=short
+
+# Show commits not pushed yet
+git log --oneline @{u}..HEAD
+
+# Show what's changed and not staged
+git diff
+
+# Show what's staged for the next commit
+git diff --staged
+
+# Show changes word by word (good for prose)
+git diff --word-diff
+
+# Show what a commit changed
+git show <commit>
+
+# Show only the file names a commit touched
+git show --name-status --format='%h %s' <commit>
+
+# Compare two branches (all differences)
+git diff <branch> <branch2> --stat
+
+# Show what a branch changed since it split off (like a PR diff)
+git diff <branch>...<branch2> --stat
+
+# List commits on a branch that aren't on another
+git log --oneline <branch>..<branch2>
+
+# Stage everything (new, changed, deleted)
+git add -A
+
+# Stage parts of a file, hunk by hunk (y/n/s=split/q)
+git add -p <file>
+
+# Commit staged changes
+git commit -m '<message>'
+
+# Stage tracked files and commit in one go
+git commit -am '<message>'
+
+# Make an empty commit (e.g. to trigger CI)
+git commit --allow-empty -m '<message>'
+
+# Change the last commit's message (only if not pushed)
+git commit --amend -m '<message>'
+
+# Add staged changes to the last commit, keeping its message
+git commit --amend --no-edit
+
+# Discard unstaged changes to a file
+git restore <file>
+
+# Unstage a file (keep the changes)
+git restore --staged <file>
+
+# Restore a file as it was in another commit
+git restore --source=<commit> -- <file>
+
+# Print a file as it was in another commit
+git show <commit>:<file>
+
+# Undo the last commit, keeping its changes staged
+git reset --soft HEAD~1
+
+# Squash the last N commits into one
+git reset --soft HEAD~<n> && git commit -m '<message>'
+
+# Throw away all local changes and commits, match the remote branch
+git fetch && git reset --hard @{u}
+
+# Undo a pushed commit with a new commit that reverses it
+git revert --no-edit <commit>
+
+# Undo a pushed merge commit
+git revert -m 1 --no-edit <commit>
+
+# Find lost commits (after reset, rebase, deleted branch)
+git reflog
+
+# Go back to where HEAD was before the last reset/rebase
+git reset --hard HEAD@{1}
+
+# Restore a deleted branch from its last commit
+git branch <new_branch> <commit>
+
+# List branches with upstream and ahead/behind
+git branch -vv
+
+# List branches, most recently used first
+git branch --sort=-committerdate --format='%(committerdate:relative)%09%(refname:short)'
+
+# Create a branch and switch to it
+git switch -c <new_branch>
+
+# Switch to a branch (a remote-only branch gets a tracking branch)
+git switch <branch>
+
+# Switch back to the previous branch
+git switch -
+
+# Rename a branch
+git branch -m <branch> <new_branch>
+
+# Delete a merged branch
+git branch -d <branch>
+
+# Delete a branch even if unmerged
+git branch -D <branch>
+
+# Delete local branches whose remote branch is gone
+git fetch --prune && git branch -vv | grep ': gone]' | awk '{print $1}' | xargs -r git branch -D
+
+# List branches that contain a commit
+git branch -a --contains <commit>
+
+# Merge a branch, always creating a merge commit
+git merge --no-ff <branch>
+
+# Rebase the current branch onto another
+git rebase <branch>
+
+# Move a branch so it starts from a new base (drop commits from old base)
+git rebase --onto <new_base> <old_base> <branch>
+
+# Interactive rebase: reorder, squash, reword, drop the last N commits
+git rebase -i HEAD~<n>
+
+# Make a fixup commit for an earlier commit, then fold it in
+git commit --fixup <commit> && git rebase -i --autosquash <commit>~1
+
+# Copy a commit onto the current branch
+git cherry-pick <commit>
+
+# List files with merge conflicts
+git diff --name-only --diff-filter=U
+
+# Resolve a conflicted file by taking their / our side
+git checkout --<side> <file> && git add <file>
+
+# Continue / abort a rebase, merge or cherry-pick in progress
+git <operation> --<action>
+
+# Stash changes, including untracked files
+git stash push -u -m '<message>'
+
+# Stash only some files
+git stash push -m '<message>' -- <file>
+
+# List stashes
+git stash list
+
+# Show a stash's changes
+git stash show -p <stash>
+
+# Apply the latest stash and drop it
+git stash pop
+
+# Apply a stash and keep it
+git stash apply <stash>
+
+# Delete a stash
+git stash drop <stash>
+
+# Fetch all remotes and prune deleted branches
+git fetch --all --prune
+
+# Pull with rebase instead of a merge commit
+git pull --rebase
+
+# Push a new branch and set its upstream
+git push -u origin HEAD
+
+# Force-push safely (refuses if someone else pushed in the meantime)
+git push --force-with-lease --force-if-includes
+
+# Delete a remote branch
+git push origin --delete <branch>
+
+# List remotes
+git remote -v
+
+# Add a remote (e.g. upstream for a fork)
+git remote add <remote> <url>
+
+# Change a remote's URL
+git remote set-url <remote> <url>
+
+# Create an annotated tag
+git tag -a <tag> -m '<message>'
+
+# Push a tag
+git push origin <tag>
+
+# Delete a tag locally and on the remote
+git tag -d <tag> && git push origin --delete <tag>
+
+# Show the latest tag reachable from HEAD
+git describe --tags
+
+# Find commits that added or removed a string
+git log --oneline -S '<text>'
+
+# Find commits whose diff matches a regex
+git log --oneline -G '<regex>'
+
+# Find commits by message
+git log --oneline --grep '<text>'
+
+# Show the history of a file, following renames
+git log --oneline --follow -- <file>
+
+# Show the history of some lines of a file
+git log -L <start>,<end>:<file>
+
+# Show who last changed each line
+git blame -L <start>,<end> <file>
+
+# Search tracked files (faster than grep, skips ignored files)
+git grep -n '<text>'
+
+# Count commits per author
+git shortlog -sn HEAD
+
+# Find the commit that broke something (exit 0 = good, 1-127 = bad, 125 = skip)
+git bisect start HEAD <commit> && git bisect run <cmd>
+
+# Mark bisect steps by hand, then finish
+git bisect <bisect_mark>
+
+# End a bisect and go back
+git bisect reset
+
+# Work on another branch in a separate folder at the same time
+git worktree add ../<worktree_dir> <branch>
+
+# Create a new branch in a new worktree folder
+git worktree add ../<worktree_dir> -b <new_branch>
+
+# List / remove worktrees
+git worktree list
+
+# Remove a worktree
+git worktree remove ../<worktree_dir>
+
+# Stop tracking a file but keep it on disk (then add it to .gitignore)
+git rm --cached <file>
+
+# Show which .gitignore rule ignores a file
+git check-ignore -v <file>
+
+# List untracked files (not ignored)
+git ls-files --others --exclude-standard
+
+# Preview deleting untracked files and dirs
+git clean -n -d
+
+# Delete untracked files and dirs
+git clean -f -d
+
+# Export a commit as a .zip / .tar.gz without the .git folder
+git archive --format=<archive_format> --prefix=<prefix>/ -o <archive_file> HEAD
+
+# Shallow clone (latest commit only)
+git clone --depth 1 <url>
+
+# Fetch the full history of a shallow clone
+git fetch --unshallow
+
+# Clone with submodules / init them after cloning
+git submodule update --init --recursive
+
+# Print repo root, current branch, short commit hash
+git rev-parse --show-toplevel && git branch --show-current && git rev-parse --short HEAD
+
+# Add a shell-free alias
+git config --global alias.<alias> '<alias_command>'
+
+# Show every config value and the file it comes from
+git config --list --show-origin
+
+# Always rebase on pull for this repo
+git config pull.rebase true
+
+; Gotchas
+; - git fetch before git push --force-with-lease defeats the lease: the fetch updates
+;   origin/<branch>, so it overwrites a colleague's new commits. Add --force-if-includes
+;   (it then refuses with "remote ref updated since checkout").
+; - reset --hard and restore discard uncommitted work for good. reflog finds lost commits,
+;   never lost uncommitted changes. Stash first if unsure.
+; - Reverting a merge needs -m 1, or it fails: "is a merge but no -m option was given".
+; - git rm --cached + .gitignore keeps the file locally, but everyone who pulls has
+;   the file DELETED from their working tree. The file also stays in history.
+; - git stash leaves untracked files behind unless you pass -u.
+; - git clean -x also deletes ignored files (.env, build output). Always run -n first.
+; - git log -- <file> stops at renames. Add --follow.
+; - git shortlog with no revision reads from stdin when not in a terminal (prints nothing
+;   in scripts). Pass HEAD.
+; - git diff a..b is the same as git diff a b. git diff a...b shows only b's changes since
+;   the merge base, which is what a pull request shows.
+; - Don't amend, rebase or squash commits others have already pulled.
+; - git bisect run: the command's exit code marks the commit. 0 good, 1-127 bad (except 125 = skip).
+; - @{u} is the upstream of the current branch (e.g. origin/master).
+
+$ branch: git branch -a --format='%(refname:short)' 2>/dev/null | grep -v -e '^origin$' -e '/HEAD$' | sed 's|^origin/||' | sort -u
+$ branch2: git branch -a --format='%(refname:short)' 2>/dev/null | grep -v -e '^origin$' -e '/HEAD$' | sed 's|^origin/||' | sort -u
+$ new_base: git branch --format='%(refname:short)' 2>/dev/null
+$ old_base: git branch --format='%(refname:short)' 2>/dev/null
+$ commit: git log --oneline --all -100 2>/dev/null --- --column 1 --delimiter ' '
+$ file: git ls-files 2>/dev/null
+$ n: printf '2\n3\n5\n'
+$ stash: git stash list 2>/dev/null --- --column 1 --delimiter ':'
+$ tag: git tag -l --sort=-creatordate 2>/dev/null
+$ remote: git remote 2>/dev/null; echo upstream
+$ side: printf 'theirs\nours\n'
+$ operation: printf 'rebase\nmerge\ncherry-pick\nrevert\n'
+$ action: printf 'continue\nabort\nskip\n'
+$ bisect_mark: printf 'good\nbad\nskip\n'
+$ worktree_dir: echo "$(basename "$PWD")-<branch>"
+$ archive_format: printf 'zip\ntar.gz\n'
+$ prefix: basename "$PWD"
+$ archive_file: echo "$(basename "$PWD")-$(git rev-parse --short HEAD 2>/dev/null).zip"
+$ alias: printf 'lg\nst\nco\n'
+$ alias_command: printf 'log --oneline --graph --decorate --all\nstatus -sb\nswitch\n'
