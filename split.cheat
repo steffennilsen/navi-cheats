@@ -1,0 +1,105 @@
+% split, csplit, cat, chunk, parts, join, recombine, large file, pieces
+
+; Written for uutils coreutils split 0.8 (same options as GNU split).
+; split <file> <prefix> writes <prefix>aa, <prefix>ab, ... Rejoin with cat <prefix>* > file.
+; Sizes: K M G = powers of 1024 (1M = 1048576), KB MB GB = powers of 1000.
+
+# Split a file into pieces of a given size
+split -b <size> <file> <file>.part-
+
+# Split into pieces with numeric suffixes (.part-00, .part-01, ...)
+split -b <size> -d <file> <file>.part-
+
+# Split with 3-digit numbers and an extension (part-000.bin, ...)
+split -b <size> -d -a 3 --additional-suffix=<suffix> <file> <prefix>
+
+# Split a text file every N lines
+split -l <lines> <file> <prefix>
+
+# Split a text file into pieces of at most a size, without breaking lines
+split -C <size> <file> <prefix>
+
+# Split into N equal-size pieces
+split -n <chunks> <file> <prefix>
+
+# Split into N pieces without breaking lines
+split -n l/<chunks> <file> <prefix>
+
+# Print only piece K of N to stdout (nothing written to disk)
+split -n <k>/<chunks> <file>
+
+# Split stdin (e.g. a stream) into pieces
+<cmd> | split -b <size> - <prefix>
+
+# Compress each piece as it's written (prefix.aa.gz, ...)
+split -b <size> --filter='gzip > $FILE.gz' <file> <prefix>
+
+# Split a CSV into pieces that each keep the header row
+tail -n +2 <file> | split -l <lines> --filter='{ head -n 1 <file>; cat; } > $FILE.csv' - <prefix>
+
+# Pack and split a directory in one go (for size-limited uploads)
+tar -czf - <dir> | split -b <size> - <archive>.tar.gz.part-
+
+# Save a checksum before splitting, to check the rejoined file
+sha256sum <file> > <file>.sha256
+
+# Save checksums of the pieces (to check each one after a transfer)
+sha256sum <prefix>* > <pieces_sums>
+
+# Check the pieces against their checksums
+sha256sum -c <pieces_sums>
+
+# Check the piece order before joining
+ls -1 <prefix>*
+
+# Rejoin pieces into the original file
+cat <prefix>* > <output>
+
+# Print the checksum of the rejoined data (compare with the saved .sha256)
+cat <prefix>* | sha256sum
+
+# Rejoin and unpack a split tar archive (no full copy on disk)
+cat <archive>.tar.gz.part-* | tar -xzf - -C <dest_dir>
+
+# Rejoin gzip-compressed pieces into the original
+cat <prefix>*.gz | gunzip > <output>
+
+# Rejoin CSV pieces, keeping a single header row
+{ head -n 1 <prefix>aa.csv; tail -q -n +2 <prefix>*.csv; } > <output>
+
+# Split a text file at every line matching a pattern (csplit)
+csplit -s -f <prefix> <file> '/<pattern>/' '{*}'
+
+# Split at a pattern and drop the matching lines and empty pieces
+csplit -s -z --suppress-matched -f <prefix> <file> '/<pattern>/' '{*}'
+
+; Gotchas
+; - cat <prefix>* joins in glob order, which matches split's suffix order (aa..az, ba..; or 00..99).
+;   Past 676 pieces split extends the suffix (yz → zaaa), and the order still holds.
+; - Don't name the joined file so it matches the glob. cat part-* > part-all works once, but
+;   a second cat part-* then includes part-all and the result is twice as big.
+; - Keep checksum files out of the glob: pieces.sha256, not part-sha256.
+; - Pick a prefix that doesn't match other files. The default is x, so cat x* may pick up xorg.log.
+; - -a <n> sets a fixed suffix length. If it runs out, split fails with
+;   "output file suffixes exhausted" AFTER writing some pieces. Leave -a off or make it bigger.
+; - split overwrites existing pieces with the same names without asking.
+; - -n <chunks> needs a real file. It can't size stdin ("cannot determine input size").
+; - -n r/N (round robin) deals out lines in turn. cat can't rejoin it.
+;   Use -n l/N if you need to join the pieces back.
+; - csplit --suppress-matched drops the separator lines, so cat doesn't give back the original.
+;   Plain csplit pieces do rejoin with cat.
+; - In --filter, quote with single quotes so $FILE reaches split, not your shell.
+
+$ file: ls -p | grep -v /
+$ prefix: printf '%s\n' part- chunk- "$(basename "$PWD")-"
+$ output: echo "rejoined-$(date +%F)"
+$ size: printf '100M\n1G\n25M\n10M\n'
+$ lines: printf '1000\n10000\n100000\n'
+$ chunks: printf '4\n2\n10\n'
+$ k: printf '1\n2\n'
+$ suffix: printf '.bin\n.txt\n.csv\n'
+$ dir: ls -d */ 2>/dev/null
+$ dest_dir: printf '.\n'; ls -d */ 2>/dev/null
+$ pieces_sums: printf 'pieces.sha256\n'
+$ archive: echo "$(basename "$PWD")-$(date +%F)"
+$ pattern: printf '^---$\n^$\n^#\n'
