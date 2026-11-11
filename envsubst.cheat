@@ -1,0 +1,51 @@
+% envsubst, template, env, variables, substitute, config, gettext
+
+; Written for GNU envsubst 0.23 (gettext). Replaces $VAR and ${VAR} in stdin with
+; values from the environment and writes to stdout. Nothing else is expanded.
+
+# Fill in a template from the environment
+envsubst < <template> > <output>
+
+# Replace only some variables (others are left as-is)
+envsubst '<vars>' < <template> > <output>
+
+# Set values just for this run
+<var>="<value>" envsubst < <template>
+
+# Load values from a .env file, then fill in a template
+(set -a; . ./<envfile>; envsubst < <template>) > <output>
+
+# Replace only variables that are set (leave unknown $VARs untouched)
+envsubst "$(env | cut -d= -f1 | sed 's/^/$/')" < <template> > <output>
+
+# List the variables a template uses
+envsubst -v "$(cat <template>)"
+
+# Find variables a template uses that aren't set
+for v in $(envsubst -v "$(cat <template>)"); do [ -z "${!v+x}" ] && echo "unset: $v"; done
+
+# Fill in a template in place (keeping its permissions)
+tmp=$(mktemp) && envsubst < <template> > "$tmp" && chmod --reference=<template> "$tmp" && mv "$tmp" <template>
+
+# Fill in a template and pipe it on (e.g. to kubectl)
+envsubst < <template> | <cmd>
+
+; Gotchas
+; - Unset variables become empty strings, with no warning. Pass a variable list, or check
+;   first with the "aren't set" command above.
+; - Only exported variables are seen. FOO=x on its own line isn't enough. Use export FOO=x,
+;   set -a, or FOO=x envsubst ...
+; - Defaults like ${VAR:-default} and $(commands) are NOT expanded. They pass through as text.
+; - There's no escape. $$VAR and \$VAR still get replaced. Use the variable-list form
+;   to protect a $ that must stay.
+; - envsubst < f > f empties f (the shell truncates it before envsubst reads it).
+;   Write to a temp file and move it, as above.
+; - The variable list is one argument of $VAR names, separated by spaces or commas: '$A $B' or '${A},${B}'.
+;   Single-quote it so your shell doesn't expand it first.
+; - $5 and other names that aren't valid variable names are left alone.
+
+$ template: ls *.tpl *.template *.tmpl *.in *.yaml *.yml *.json *.conf 2>/dev/null
+$ output: printf '%s\n' <template> | sed -E 's/\.(tpl|template|tmpl|in)$//'
+$ envfile: ls -a .env* *.env 2>/dev/null
+$ vars: envsubst -v "$(cat <template>)" 2>/dev/null | sed 's/^/$/' | paste -sd' '
+$ var: envsubst -v "$(cat <template>)" 2>/dev/null

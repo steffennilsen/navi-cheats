@@ -1,0 +1,76 @@
+% gzip, gunzip, zcat, compress, decompress, gz
+
+; Written for GNU gzip 1.14. gzip compresses single files, not directories.
+; To pack a directory, use tar -czf (see tar.cheat).
+
+# Compress a file (replaces it with file.gz)
+gzip <file>
+
+# Compress and keep the original
+gzip -k <file>
+
+# Decompress (replaces file.gz with file)
+gzip -d <gzfile>
+
+# Decompress and keep the .gz
+gzip -dk <gzfile>
+
+# Compress to stdout (original untouched)
+gzip -c <file> > <file>.gz
+
+# Compress with the best (-9) or fastest (-1) level
+gzip -<level> -k <file>
+
+# Compress every file in a directory tree (each file gets its own .gz)
+gzip -r <dir>
+
+# Decompress every .gz in a directory tree
+gzip -dr <dir>
+
+# Overwrite an existing .gz
+gzip -f <file>
+
+# Reproducible output (no name or timestamp in the header)
+gzip -n -c <file> > <file>.gz
+
+# Print a .gz to stdout
+zcat <gzfile>
+
+# Look at the start of a .gz without decompressing it to disk
+zcat <gzfile> | head -n 20
+
+# Page through a .gz
+zless <gzfile>
+
+# Search inside a .gz
+zgrep '<pattern>' <gzfile>
+
+# Compare two .gz files
+zdiff <gzfile> <gzfile2>
+
+# Show compressed size, uncompressed size and ratio
+gzip -l <gzfile>
+
+# Test that a .gz is valid
+gzip -t <gzfile>
+
+# Print a file whether it's gzipped or not
+zcat -f <file>
+
+# Compress a command's output
+<cmd> | gzip > <out>.gz
+
+; Gotchas
+; - gzip and gzip -d remove the input file. Add -k to keep it.
+; - "already exists; not overwritten" (exit 2) when the target exists. Add -f.
+; - Concatenated .gz files are valid: cat a.gz b.gz > c.gz, and zcat c.gz prints both.
+; - A higher level isn't always smaller. -1 beat -9 on some test data. Try both if it matters.
+; - The .gz header stores the original name and mtime, so the same input gives different
+;   bytes at different times. Use -n for reproducible builds and checksums.
+
+$ file: ls -p | grep -v / | grep -v '\.gz$'
+$ gzfile: ls *.gz 2>/dev/null
+$ gzfile2: ls *.gz 2>/dev/null
+$ dir: printf '.\n'; ls -d */ 2>/dev/null
+$ level: printf '9\n1\n6\n'
+$ out: echo "output-$(date +%F)"

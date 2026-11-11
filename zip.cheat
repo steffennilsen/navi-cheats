@@ -1,0 +1,94 @@
+% zip, unzip, archive, compress, extract, zipinfo
+
+; Written for Info-ZIP zip 3.0 and unzip 6.0.
+; zip archive.zip files... adds to (or creates) archive.zip. Use -r for directories.
+
+# Zip a directory
+zip -r <zipfile> <dir>
+
+# Zip a directory, leaving out .git, node_modules and other paths (-x goes last)
+zip -r <zipfile> <dir> -x '*/.git/*' '*/node_modules/*' '<exclude_glob>'
+
+# Zip a directory's contents without the top-level folder
+(cd <dir> && zip -r "$OLDPWD/<zipfile>" .)
+
+# Zip files without their directory paths (flat)
+zip -j <zipfile> <files>
+
+# Zip a list of files from find (one path per line on stdin)
+find <dir> -name '<glob>' | zip <zipfile> -@
+
+# Zip with maximum compression (-0 stores without compressing)
+zip -9 -r <zipfile> <dir>
+
+# Zip with a password (prompts, so it stays out of shell history)
+zip -e -r <zipfile> <dir>
+
+# Keep symlinks as links instead of zipping what they point to
+zip -ry <zipfile> <dir>
+
+# Add or update files in an existing zip
+zip -u <zipfile> <file>
+
+# Sync a zip with a directory (also removes entries for deleted files)
+zip -r -FS <zipfile> <dir>
+
+# Delete a file from a zip
+zip -d <zipfile> '<entry>'
+
+# List the contents
+unzip -l <zipfile>
+
+# List just the entry names, one per line
+unzip -Z1 <zipfile>
+
+# List with permissions and compression details
+zipinfo <zipfile>
+
+# Test the archive for errors
+unzip -t <zipfile>
+
+# Extract into a directory (created if missing)
+unzip <zipfile> -d <dir>
+
+# Extract only some entries (quote the pattern)
+unzip <zipfile> '<entry_glob>' -d <dir>
+
+# Extract without directory paths (flat)
+unzip -j <zipfile> -d <dir>
+
+# Extract, overwriting existing files without asking
+unzip -o <zipfile> -d <dir>
+
+# Extract, never overwriting existing files
+unzip -n <zipfile> -d <dir>
+
+# Print one file to stdout without extracting
+unzip -p <zipfile> '<entry>'
+
+# Extract a password-protected zip (prompts for the password)
+unzip <zipfile> -d <dir>
+
+; Gotchas
+; - Put -x last. Anything after -x is read as an exclude pattern, so
+;   zip -r -x '*.log' out.zip dir treats out.zip and dir as patterns too
+;   ("nothing to select from").
+; - -x patterns match the stored path, e.g. dir/.git/*. Use '*/.git/*' to match at any depth,
+;   and quote them so the shell doesn't expand them.
+; - zip -r includes dotfiles (.git, .env). Exclude them on purpose.
+; - unzip asks before overwriting (replace? [y]es, [n]o, [A]ll...). Use -o or -n in scripts.
+;   Passing both -n and -o gives "caution: both -n and -o specified; ignoring -o".
+; - zip -P <password> works, but the password ends up in shell history and ps. Prefer -e.
+;   Classic zip encryption is weak. Use 7z or gpg for anything sensitive.
+; - unzip can't read .tar.gz ("End-of-central-directory signature not found"). Use tar.
+; - Splitting with zip -s makes .z01 .z02 ... parts, but rejoining them with zip -s 0
+;   gave a corrupt archive here, so splitting is left out of this sheet.
+
+$ zipfile: ls *.zip 2>/dev/null; echo "archive-$(date +%F).zip"
+$ dir: printf '.\n'; ls -d */ 2>/dev/null
+$ file: ls -p | grep -v /
+$ files: ls -p | grep -v / --- --multi --expand
+$ glob: printf '*.py\n*.txt\n*.json\n*.csv\n'
+$ exclude_glob: printf '*.log\n*/__pycache__/*\n*/.venv/*\n*.DS_Store\n'
+$ entry: unzip -Z1 <zipfile> 2>/dev/null
+$ entry_glob: printf '*.txt\n*/src/*\n'

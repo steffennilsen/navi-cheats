@@ -1,0 +1,88 @@
+% tar, archive, tarball, compress, extract, tgz, gz, xz, bz2, backup
+
+; Written for GNU tar 1.35.
+; c create, x extract, t list, f <file> archive file (- = stdin/stdout),
+; z gzip, J xz, j bzip2, a pick by extension, v verbose, C <dir> change directory first.
+
+# Create a .tar.gz from a directory
+tar -czf <archive>.tar.gz <dir>
+
+# Create an archive, choosing compression from the extension (.tar.gz, .tar.xz, .tar.bz2)
+tar -caf <archive_name> <dir>
+
+# Create a .tar.xz (smaller, slower)
+tar -cJf <archive>.tar.xz <dir>
+
+# Create an archive, leaving things out (--exclude goes BEFORE the paths)
+tar -czf <archive>.tar.gz --exclude=.git --exclude=node_modules --exclude='<exclude_glob>' <dir>
+
+# Create an archive without version-control dirs (.git, .svn, .hg ...)
+tar -czf <archive>.tar.gz --exclude-vcs <dir>
+
+# Archive a directory's contents without the top-level folder
+tar -czf <archive>.tar.gz -C <dir> .
+
+# Archive a list of files from find
+find <dir> -name '<glob>' | tar -czf <archive>.tar.gz -T -
+
+# List the contents
+tar -tf <tarfile>
+
+# List with permissions, owner, size and date
+tar -tvf <tarfile>
+
+# Extract into the current directory (compression is detected automatically)
+tar -xf <tarfile>
+
+# Extract into another directory (it must exist)
+mkdir -p <dir> && tar -xf <tarfile> -C <dir>
+
+# Extract, dropping the top-level folder
+tar -xf <tarfile> -C <dir> --strip-components=1
+
+# Extract only some files
+tar -xf <tarfile> '<entry>'
+
+# Extract only files matching a glob
+tar -xf <tarfile> --wildcards '<glob>'
+
+# Print one file from an archive to stdout
+tar -xOf <tarfile> '<entry>'
+
+# Extract without overwriting files that already exist
+tar -xf <tarfile> --skip-old-files
+
+# Show what differs between an archive and the files on disk
+tar -df <tarfile>
+
+# Append files to an uncompressed .tar
+tar -rf <archive>.tar <file>
+
+# Copy a directory tree, keeping permissions and symlinks
+tar -cf - <dir> | tar -xf - -C <dest_dir>
+
+# Copy a directory to another machine over ssh
+tar -czf - <dir> | ssh <host> 'tar -xzf - -C <remote_dir>'
+
+; Gotchas
+; - Put --exclude before the paths. After them, tar 1.35 fails with
+;   "--exclude ‘.git’ has no effect" and exits non-zero.
+; - --exclude matches any path component, so --exclude=.git also catches nested .git dirs.
+; - -C <dir> must already exist when extracting ("Cannot open: No such file or directory").
+; - tar -x overwrites existing files without asking. Use --skip-old-files, or list first with -t.
+; - -r / -u (append/update) don't work on compressed archives ("Cannot update compressed archives").
+; - -f takes the next word as the archive name, so keep f last in a bundle. tar -cfz out.tgz dir
+;   writes an archive named "z" and tries to add out.tgz to it.
+; - Entry names must match exactly as tar -t shows them (often with a leading ./ or folder/).
+; - zstd isn't installed here. With it, use --zstd or .tar.zst with -a.
+
+$ tarfile: ls *.tar *.tar.gz *.tgz *.tar.xz *.txz *.tar.bz2 *.tbz2 2>/dev/null
+$ archive: echo "$(basename "$PWD")-$(date +%F)"
+$ archive_name: n="$(basename "$PWD")-$(date +%F)"; printf '%s\n' "$n.tar.gz" "$n.tar.xz" "$n.tar.bz2"
+$ dir: printf '.\n'; ls -d */ 2>/dev/null
+$ dest_dir: ls -d */ 2>/dev/null
+$ file: ls -p | grep -v /
+$ entry: tar -tf <tarfile> 2>/dev/null
+$ glob: printf '*.py\n*.txt\n*.json\n*.log\n'
+$ exclude_glob: printf '*.log\n__pycache__\n.venv\n*.tmp\n'
+$ remote_dir: printf '~\n/tmp\n'

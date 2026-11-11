@@ -1,0 +1,58 @@
+% tee, output, log, pipe, stdout, file, sudo, split
+
+; Written for uutils coreutils tee 0.8 (same options as GNU tee).
+; tee copies stdin to stdout and to each file you name.
+
+# Show a command's output and save it to a file
+<cmd> | tee <file>
+
+# Show and append to a file
+<cmd> | tee -a <file>
+
+# Save stdout and stderr together while watching them
+<cmd> 2>&1 | tee <file>
+
+# Save to a file without printing anything
+<cmd> | tee <file> > /dev/null
+
+# Write the same output to several files
+<cmd> | tee <file> <file2> > /dev/null
+
+# Write to a root-owned file (sudo on tee, not on the redirect)
+echo '<line>' | sudo tee -a <root_file> > /dev/null
+
+# Keep the command's exit code, not tee's
+set -o pipefail; <cmd> | tee <file>
+
+# Read the exit code of each part of the last pipeline
+<cmd> | tee <file>; echo "${PIPESTATUS[@]}"
+
+# Send output to another command as well as the screen
+<cmd> | tee >(<cmd2>)
+
+# Count lines while passing the output on
+<cmd> | tee >(wc -l > <file>) | <cmd2>
+
+# Copy output to stderr (shows on screen even when stdout is piped)
+<cmd> | tee /dev/stderr | <cmd2>
+
+# Log a script's whole output from inside the script
+exec > >(tee -a <file>) 2>&1
+
+# Keep writing to the file when a process substitution stops reading early
+<cmd> | tee -p >(head -1) > <file>
+
+; Gotchas
+; - sudo echo x > /root/file fails: the redirect runs as you, not root. Pipe into sudo tee.
+; - A pipeline's exit code is tee's (usually 0). false | tee x exits 0.
+;   Use set -o pipefail or ${PIPESTATUS[0]}.
+; - tee overwrites by default. Add -a to append.
+; - If a reader in >(...) exits early (e.g. head), tee gets SIGPIPE and exit code 141, and the
+;   files may be incomplete. -p (or --output-error=warn) keeps writing the rest.
+; - Many tools turn off colors when piped. Force them (ls --color=always, grep --color=always),
+;   then read the file with less -R.
+; - Output through tee can be buffered. For live logs, use stdbuf -oL <cmd> | tee file.
+
+$ file: ls *.log *.txt 2>/dev/null; echo "output-$(date +%F-%H%M).log"
+$ file2: ls *.log *.txt 2>/dev/null
+$ root_file: printf '/etc/hosts\n/etc/environment\n'

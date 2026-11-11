@@ -1,0 +1,47 @@
+% mktemp, temp, temporary, tmp, file, directory, script, cleanup
+
+; Written for uutils coreutils mktemp 0.8 (same options as GNU mktemp).
+; Creates a uniquely named file or directory (mode 600 / 700) and prints its path.
+; Templates need at least 3 trailing X's, which get replaced with random characters.
+
+# Create a temp file
+tmp=$(mktemp)
+
+# Create a temp directory
+tmpdir=$(mktemp -d)
+
+# Create a temp file with a name prefix (in $TMPDIR or /tmp)
+tmp=$(mktemp -t <prefix>.XXXXXX)
+
+# Create a temp file with an extension
+tmp=$(mktemp --suffix=<suffix>)
+
+# Create a temp file in a specific directory
+tmp=$(mktemp -p <dir> <prefix>.XXXXXX)
+
+# Create a temp file next to a target (for an atomic replace on the same filesystem)
+tmp=$(mktemp "<target>.XXXXXX")
+
+# Create a temp directory and delete it when the script exits
+tmpdir=$(mktemp -d) && trap 'rm -rf "$tmpdir"' EXIT
+
+# Replace a file atomically, keeping its permissions
+tmp=$(mktemp "<target>.XXXXXX") && <cmd> > "$tmp" && chmod --reference=<target> "$tmp" && mv "$tmp" <target>
+
+# Print a name without creating anything (unsafe, for display only)
+mktemp -u
+
+; Gotchas
+; - Files are created with mode 600 and dirs with 700. mv keeps that mode, so a config
+;   replaced via mktemp + mv becomes unreadable for others. chmod --reference=<old> first.
+; - Fewer than 3 X's fails: "too few X's in template". A template with no X's at all fails too.
+; - Only the last run of X's is replaced: aXXXXXXbXXX → aXXXXXXbRo4.
+; - mktemp /nonexistent/... fails (exit 1). -q hides the message, but the exit code stays 1.
+; - Put the trap right after mktemp, so the directory is removed even if the script fails.
+; - mktemp -t is marked deprecated in uutils but still works. -p <dir> or --tmpdir=<dir> is the long-term form.
+; - $TMPDIR changes where files go. Unset, it's /tmp.
+
+$ prefix: basename "$PWD"; printf 'build\nwork\n'
+$ suffix: printf '.json\n.yaml\n.txt\n.sh\n'
+$ dir: printf '.\n/tmp\n'; ls -d */ 2>/dev/null
+$ target: ls -p | grep -v /
