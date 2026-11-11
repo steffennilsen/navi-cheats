@@ -1,0 +1,171 @@
+% fab, fabric, microsoft fabric, onelake, lakehouse, workspace, powerbi, notebook, pipeline
+
+; Microsoft Fabric CLI (pip install ms-fabric-cli), written for 1.9.
+; Not the Python SSH tool also called "fab". Check with fab --version.
+; Fabric looks like a file system: paths are <workspace>.Workspace/<item>.<Type>,
+; e.g. "My WS.Workspace/lh1.Lakehouse/Files/raw/data.csv". Quote them, names often have spaces.
+; Tenant-level collections are hidden dot-paths: .capacities .connections .domains .gateways
+
+# Install fab as a global tool with mise (uses uv)
+mise use -g pypi:ms-fabric-cli
+
+# Log in by reusing an existing az login session (no browser)
+fab auth login --azure-cli
+
+# Log in interactively (browser)
+fab auth login
+
+# Log in as a service principal
+fab auth login -u <client_id> -p "$FAB_CLIENT_SECRET" --tenant <tenant>
+
+# Show who is logged in and which tokens are cached
+fab auth status
+
+# Log out
+fab auth logout
+
+# List workspaces
+fab ls
+
+# List workspaces with ids and capacity
+fab ls -l
+
+# List workspaces whose name contains a string (JMESPath)
+fab ls -q "[?contains(name, '<text>')].name"
+
+# List hidden tenant-level collections too (.capacities, .connections, ...)
+fab ls -a
+
+# List items in a workspace
+fab ls "<workspace>"
+
+# List items of one type in a workspace
+fab ls "<workspace>" -q "[?ends_with(name, '.<item_type>')].name"
+
+# List items with their ids
+fab ls -l "<workspace>"
+
+# List lakehouse tables
+fab ls "<workspace>/<lakehouse>/Tables"
+
+# List lakehouse files with size and modified time
+fab ls -l "<workspace>/<lakehouse>/Files/<onelake_dir>"
+
+# Show the schema of a Delta table
+fab table schema "<workspace>/<lakehouse>/Tables/<table>"
+
+# Search the OneLake catalog for items by name or description
+fab find '<text>'
+
+# Search for items of one type
+fab find '<text>' -P type=<item_type>
+
+# Show all properties of a workspace or item as JSON
+fab get "<workspace>/<item>"
+
+# Get one property (e.g. id, properties.oneLakeFilesPath)
+fab get "<workspace>/<item>" -q <property>
+
+# Check if a workspace or item exists (prints * true / * false)
+fab exists "<workspace>/<item>"
+
+# Download a OneLake file to the current directory
+fab cp "<workspace>/<lakehouse>/Files/<onelake_dir>/<onelake_file>" ./
+
+# Upload a local file to a lakehouse
+fab cp ./<local_file> "<workspace>/<lakehouse>/Files/<onelake_dir>/"
+
+# Export an item definition (notebook, report, pipeline ...) to a local directory
+fab export "<workspace>/<item>" -o <export_dir> -f
+
+# Export a notebook as a .py file instead of .ipynb
+fab export "<workspace>/<item>" -o <export_dir> --format .py -f
+
+# Export a whole workspace, keeping its folder structure
+fab bulk-export "<workspace>" -o <export_dir> --recursive
+
+# Import (create or update) an item from a local export
+fab import "<workspace>/<item>" -i <export_dir>/<item> -f
+
+# Copy an item to another workspace
+fab cp "<workspace>/<item>" "<workspace2>/<item>"
+
+# Run a notebook or pipeline and wait for it to finish
+fab job run "<workspace>/<item>" --timeout <seconds>
+
+# Start a notebook or pipeline without waiting
+fab job start "<workspace>/<item>"
+
+# List recent runs of a notebook or pipeline
+fab job run-list "<workspace>/<item>"
+
+# Create an empty item (type from the extension, e.g. .Notebook, .Lakehouse)
+fab mkdir "<workspace>/<new_item>"
+
+# Create a folder in a lakehouse
+fab mkdir "<workspace>/<lakehouse>/Files/<onelake_dir>"
+
+# Delete an item (asks first; -f skips the prompt)
+fab rm "<workspace>/<item>"
+
+# Rename a workspace or item
+fab set "<workspace>/<item>" -q displayName -i '<new_name>'
+
+# List who has access to a workspace
+fab acl ls "<workspace>"
+
+# List capacities
+fab ls -l .capacities
+
+# Assign a capacity to a workspace
+fab assign ".capacities/<capacity>" -W "<workspace>"
+
+# Open a workspace or item in the browser
+fab open "<workspace>/<item>"
+
+# Call the Fabric REST API (body is under .text in the response)
+fab api workspaces -q "text.value[].displayName"
+
+# Call the Power BI REST API
+fab api -A powerbi groups -q "text.value[].name"
+
+# Show which commands work on an item type
+fab desc .<item_type>
+
+# Show CLI settings
+fab config ls
+
+# Set output format for every command (text or json)
+fab config set output_format <output_format>
+
+# Start the interactive shell (cd, ls, pwd without the fab prefix; quit to leave)
+fab
+
+; Gotchas
+; - fab exists prints "* false" but still exits 0. Check the output, not $?.
+; - fab api wraps the response: {"status_code": 200, "text": {...}}.
+;   Your JMESPath has to start with text. (text.value[].id), or you get None.
+; - fab cp to local needs ./ or a file name. A bare "." fails with
+;   "Source and destination must be of the same type".
+; - export -o needs an existing directory. It writes <item>/ inside it, with .platform
+;   and the definition (notebook-content.ipynb, or .py with --format .py).
+; - export/get/cp ask before dropping sensitivity labels. Add -f in scripts.
+; - --json on any command gives a JSON envelope (status, command, result.data).
+; - Lakehouses with schemas nest tables one level deeper: Tables/<schema>/<table> (dbo, ...).
+; - Login tokens and settings live in ~/.config/fab/.
+
+$ workspace: fab ls 2>/dev/null
+$ workspace2: fab ls 2>/dev/null
+$ item: fab ls "<workspace>" 2>/dev/null
+$ lakehouse: fab ls "<workspace>" -q "[?ends_with(name, '.Lakehouse')].name" 2>/dev/null
+$ table: fab ls "<workspace>/<lakehouse>/Tables" 2>/dev/null
+$ onelake_dir: fab ls "<workspace>/<lakehouse>/Files" 2>/dev/null
+$ onelake_file: fab ls "<workspace>/<lakehouse>/Files/<onelake_dir>" 2>/dev/null
+$ capacity: fab ls .capacities 2>/dev/null
+$ item_type: printf 'Notebook\nLakehouse\nDataPipeline\nReport\nSemanticModel\nWarehouse\nEnvironment\nEventhouse\nSQLDatabase\n'
+$ new_item: printf 'nb_new.Notebook\nlh_new.Lakehouse\n'
+$ property: printf 'id\nproperties\nproperties.oneLakeFilesPath\nproperties.oneLakeTablesPath\ndisplayName\n'
+$ export_dir: printf '.\n'; ls -d */ 2>/dev/null
+$ local_file: ls -p | grep -v /
+$ output_format: printf 'text\njson\n'
+$ seconds: printf '600\n3600\n'

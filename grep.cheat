@@ -1,0 +1,133 @@
+% grep, search, find, text, regex, pattern, match, files, recursive, filter
+
+; Written for GNU grep 3.x. Exit code: 0 = match, 1 = no match, 2 = error.
+; Default pattern syntax is basic regex (BRE). -E = extended, -P = Perl, -F = fixed string.
+
+# Search a file
+grep -n '<pattern>' <file>
+
+# Search a file, ignoring case
+grep -in '<pattern>' <file>
+
+# Search a fixed string (no regex: dots, brackets, etc. are literal)
+grep -Fn -- '<text>' <file>
+
+# Match a whole word only (foo, not foobar)
+grep -wn '<pattern>' <file>
+
+# Match the whole line exactly
+grep -Fx -- '<text>' <file>
+
+# Search recursively from a directory, with line numbers
+grep -rn '<pattern>' <dir>
+
+# Search recursively, skipping common junk directories and binary files
+grep -rnI --exclude-dir={.git,node_modules,.venv,dist,build} '<pattern>' <dir>
+
+# Search recursively, only in files matching a glob
+grep -rn --include='<glob>' '<pattern>' <dir>
+
+# Search recursively, skipping files matching a glob
+grep -rn --exclude='<glob>' '<pattern>' <dir>
+
+# Search recursively and follow symlinks
+grep -Rn '<pattern>' <dir>
+
+# List files that contain a match
+grep -rl '<pattern>' <dir>
+
+# List files that do NOT contain a match
+grep -rL '<pattern>' <dir>
+
+# Count matching lines per file
+grep -c '<pattern>' <file>
+
+# Show N lines of context around each match
+grep -n -C <n> '<pattern>' <file>
+
+# Show N lines after each match
+grep -n -A <n> '<pattern>' <file>
+
+# Show N lines before each match
+grep -n -B <n> '<pattern>' <file>
+
+# Stop after the first N matches
+grep -m <n> '<pattern>' <file>
+
+# Print only the matching part of each line
+grep -oE '<pattern>' <file>
+
+# Match any of several patterns (extended regex)
+grep -E '<pattern>|<pattern2>' <file>
+
+# Match any of several patterns (repeat -e)
+grep -e '<pattern>' -e '<pattern2>' <file>
+
+# Match lines containing both patterns (in any order)
+grep '<pattern>' <file> | grep '<pattern2>'
+
+# Invert: show lines that do NOT match
+grep -v '<pattern>' <file>
+
+# Strip blank lines and # comments
+grep -Ev '^\s*(#|$)' <file>
+
+# Match against a list of fixed strings, one per line in a file
+grep -Ff <patterns_file> <file>
+
+# Extract IPv4 addresses
+grep -oE '[0-9]{1,3}(\.[0-9]{1,3}){3}' <file>
+
+# Extract email addresses
+grep -oE '[[:alnum:]._%+-]+@[[:alnum:].-]+\.[[:alpha:]]{2,}' <file>
+
+# Extract the value after a key (Perl regex, \K drops what came before)
+grep -oP '<key>\s*[=:]\s*\K\S+' <file>
+
+# Match across lines (whole file as one record; -z output is NUL-terminated)
+grep -Pzo '(?s)<pattern>.*?<pattern2>' <file> | tr '\0' '\n'
+
+# Count occurrences of each distinct match across a tree
+grep -rhoE '<pattern>' <dir> | sort | uniq -c | sort -rn
+
+# Just test for a match (no output, use the exit code)
+grep -q '<pattern>' <file> && echo found
+
+# Find a running process, leaving out the grep itself
+ps aux | grep -v grep | grep -i '<process>'
+
+# Follow a log and show only matching lines as they arrive
+tail -f <file> | grep --line-buffered '<pattern>'
+
+# Pass matching file names to another command (safe for spaces)
+grep -rlZ '<pattern>' <dir> | xargs -0 <cmd>
+
+# Search a binary file as if it were text
+grep -a -n '<pattern>' <file>
+
+# Keep colors when piping into less
+grep -rn --color=always '<pattern>' <dir> | less -R
+
+; Gotchas
+; - In basic regex (no -E), | + ? { } ( ) are literal. GNU grep uses \| \+ \? instead.
+;   'foo|bar' matches the literal text "foo|bar". Use -E 'foo|bar'.
+; - \d is Perl-only. With -E, '\d' matches a literal "d", with no error.
+;   Use [0-9] or [[:digit:]], or switch to -P.
+; - A pattern starting with - is read as an option (grep '-x' gives a usage error).
+;   Put -- before it: grep -- '-x' file, or use -e '-x'.
+; - --exclude-dir and --include match the base name, not a path.
+;   --exclude-dir=node_modules works. --exclude-dir=./node_modules does nothing.
+; - -r skips symlinks it finds while walking the tree. Use -R to follow them.
+; - Exit code is 2 if any file is missing or unreadable, even when other files match.
+;   Add -s to hide the "No such file" messages (exit code is still 2).
+; - "binary file matches" means a NUL byte was found. Use -I to skip binaries, -a to search them as text.
+; - -c counts matching lines, not matches. For matches, use grep -o ... | wc -l.
+; - Brace expansion {a,b} in --exclude-dir is done by bash, not grep. It needs at least two items.
+
+$ file: ls -p | grep -v /
+$ patterns_file: ls -p | grep -v /
+$ dir: printf '.\n'; ls -d */ 2>/dev/null
+$ glob: printf '*.py\n*.js\n*.ts\n*.go\n*.md\n*.yaml\n*.json\n'
+$ n: printf '3\n1\n5\n10\n'
+$ process: ps -eo comm= | sort -u
+$ key: printf 'password\ntoken\nversion\n'

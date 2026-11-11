@@ -1,0 +1,110 @@
+% fzf, fuzzy, finder, picker, select, search, interactive, menu, preview, shell
+
+; Written for fzf 0.67. Keys inside fzf: Enter accept, Esc/Ctrl-C abort,
+; Tab / Shift-Tab mark items with -m, Ctrl-J/K or arrows move.
+; Search syntax: foo fuzzy, 'foo exact, ^foo prefix, foo$ suffix, !foo not,
+; "a b" both terms (AND), "a | b" either term (OR).
+; Without piped input, fzf lists files under . (skips .git and node_modules).
+
+# Pick a file
+fzf
+
+# Pick a file with a syntax-highlighted preview
+fzf --preview 'batcat --color=always --style=numbers {}'
+
+# Open the picked file in $EDITOR
+${EDITOR:-vi} "$(fzf)"
+
+# Pick several files (Tab to mark, Enter to accept)
+fzf -m
+
+# Pick a directory and cd into it
+cd "$(fzf --walker=dir,hidden)"
+
+# List files under another directory
+fzf --walker-root=<dir>
+
+# Open in a smaller pane under the cursor instead of fullscreen
+fzf --height 40% --layout reverse --border
+
+# Open in a tmux popup (only inside an attached tmux session)
+fzf --tmux center,80%
+
+# Use the full style preset (borders and labels around every section)
+fzf --style full
+
+# Start with a query already typed
+fzf --query '<query>'
+
+# Filter without the UI (non-interactive, prints all matches)
+<cmd> | fzf --filter '<query>'
+
+# Auto-accept a single match, exit at once if there are none
+<cmd> | fzf --select-1 --exit-0 --query '<query>'
+
+# Print the typed query as the first output line, then the pick
+<cmd> | fzf --print-query
+
+# Pick from a list with a header row (first line stays fixed)
+<cmd> | fzf --header-lines=1
+
+# Show only some fields, print a different field on accept
+<cmd> | fzf --delimiter '<delimiter>' --with-nth=<fields> --accept-nth=<accept_field>
+
+# Show newest items first (e.g. logs, history)
+<cmd> | fzf --tac --no-sort
+
+# Kill one or more processes
+ps -ef | fzf --header-lines=1 -m --accept-nth=2 | xargs -r kill
+
+# Switch git branch
+git switch "$(git branch --format='%(refname:short)' | fzf)"
+
+# Browse git log with a commit preview, print the hash
+git log --oneline | fzf --preview 'git show --color=always {1}' --accept-nth=1
+
+# Pick an environment variable name
+env | fzf --delimiter = --accept-nth=1
+
+# Browse commands with their man page as preview
+compgen -c | sort -u | fzf --preview 'man {} 2>/dev/null | head -50'
+
+# Live grep: search as you type, preview the hit, print "file +line"
+: | fzf --ansi --disabled --bind 'start,change:reload:grep -rnI --color=always -- {q} . || true' --delimiter : --preview 'batcat --color=always --highlight-line {2} {1}' --preview-window '+{2}/2' --bind 'enter:become(echo {1} +{2})'
+
+# Replace fzf with another command on Enter (e.g. open the pick in vim)
+fzf --bind 'enter:become(vim {})'
+
+# Copy the highlighted line to the clipboard with Ctrl-Y
+<cmd> | fzf --bind 'ctrl-y:execute-silent(echo -n {} | wl-copy)+abort'
+
+# Toggle the preview window with Ctrl-/
+fzf --preview 'cat {}' --bind 'ctrl-/:toggle-preview'
+
+# Handle NUL-separated input/output (file names with newlines)
+find . -type f -print0 | fzf --read0 --print0 -m | xargs -0 -r ls -l
+
+# Enable shell key bindings: Ctrl-T files, Ctrl-R history, Alt-C cd, **<Tab> completion
+eval "$(fzf --bash)"
+
+# Set default options for every fzf run (put in ~/.bashrc)
+export FZF_DEFAULT_OPTS='--height 40% --layout reverse --border'
+
+; Gotchas
+; - Placeholders: {} whole line, {1} {2} fields, {q} current query, {+} all marked items.
+;   fzf quotes them for the shell, so don't wrap them in quotes yourself.
+; - Fields are split on whitespace unless you pass --delimiter (a regex).
+; - --accept-nth needs fzf 0.60+. On older versions, pipe through awk/cut instead.
+; - --tmux falls back to normal mode outside tmux. In a tmux session with no attached
+;   client it fails with "no current client".
+; - $FZF_DEFAULT_COMMAND (if set) replaces the built-in file walker, and
+;   --walker/--walker-root/--walker-skip are then ignored.
+; - On Debian/Ubuntu bat is installed as batcat. Use bat on other systems.
+; - Exit code: 0 picked, 1 no match, 2 error, 130 aborted (Esc / Ctrl-C).
+; - become() replaces fzf with the command. execute() runs it and returns to fzf.
+
+$ dir: printf '.\n'; ls -d */ 2>/dev/null
+$ query: printf '\n'
+$ delimiter: printf ':\n,\n=\n\\t\n'
+$ fields: printf '1\n1,3\n2..\n'
+$ accept_field: printf '1\n2\n'

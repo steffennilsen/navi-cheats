@@ -1,0 +1,166 @@
+% mise, rtx, version manager, tools, runtime, env, tasks, asdf, node, python
+
+; Written for mise 2026.10. Config: ./mise.toml (project), ./mise.local.toml (yours,
+; don't commit), ~/.config/mise/config.toml (global, written by -g).
+; Tool names are registry shorthands (node, python, jq) or backend:name,
+; e.g. aqua:jqlang/jq, github:owner/repo, pypi:pkg, npm:pkg, cargo:crate, go:module.
+
+# Install a tool and pin it in the project's mise.toml
+mise use <tool>@<version>
+
+# Install a tool and make it the global default
+mise use -g <tool>@<version>
+
+# Pin the exact resolved version (1.8 → 1.8.2)
+mise use --pin <tool>@<version>
+
+# Install a Python CLI from PyPI as a global tool (uses uv when pypi.uvx is set)
+mise use -g pypi:<package>
+
+# Install a binary from GitHub releases
+mise use -g github:<owner_repo>
+
+# Remove a tool from the config and prune unused versions
+mise unuse <tool>
+
+# Install everything the config asks for
+mise install
+
+# Run a command with a tool that isn't in the config
+mise exec <tool>@<version> -- <cmd>
+
+# Run a command with the project's tools and env (no activation needed)
+mise x -- <cmd>
+
+# Run a command as if in another directory
+mise -C <dir> x -- <cmd>
+
+# List installed and active tool versions
+mise ls
+
+# List only the versions active here
+mise ls --current
+
+# List versions set in the global config
+mise ls -g
+
+# List tools the config wants but that aren't installed
+mise ls --missing
+
+# List versions available to install
+mise ls-remote <tool>
+
+# Print the latest version of a tool
+mise latest <tool>
+
+# Show where a tool comes from, its backend and versions
+mise tool <tool>
+
+# Search the registry
+mise search <query>
+
+# Show the backends a registry shorthand maps to
+mise registry <tool>
+
+# Print the path to a tool's executable
+mise which <bin>
+
+# Print a tool's install directory
+mise where <tool>
+
+# Show outdated tools (inside the configured version ranges)
+mise outdated
+
+# Show outdated tools, including newer major versions
+mise outdated --bump
+
+# Upgrade tools (dry run first)
+mise upgrade --dry-run
+
+# Upgrade past the configured range (e.g. 1.7 → 1.8) and update mise.toml
+mise upgrade --bump
+
+# Choose tools to upgrade from a menu
+mise upgrade --interactive
+
+# Uninstall one version
+mise uninstall <tool>@<version>
+
+# Delete versions no config uses any more (dry run)
+mise prune --dry-run
+
+# Set an environment variable in mise.toml
+mise set <var>=<value>
+
+# List env vars set by mise configs
+mise set
+
+# Remove an env var from mise.toml
+mise unset <var>
+
+# Print the environment mise would set here
+mise env
+
+# List tasks
+mise tasks ls
+
+# Run a task (args after the name go to the task)
+mise run <task>
+
+# Show a task's definition and source file
+mise tasks info <task>
+
+# Rerun a task when its sources change (needs watchexec: mise use -g watchexec)
+mise watch <task>
+
+# Trust the config in this directory (needed for configs you didn't create)
+mise trust
+
+# List config files in effect, closest last
+mise config ls
+
+# Write a lockfile with versions, checksums and URLs for each platform
+mise lock
+
+# Set a setting in the global config
+mise settings set <setting> <setting_value>
+
+# Activate mise in bash (put in ~/.bashrc; enables mise shell and auto env switching)
+eval "$(mise activate bash)"
+
+# Use a version only in the current shell (needs activation)
+mise shell <tool>@<version>
+
+# Check the setup for problems
+mise doctor
+
+# Clear the cache (e.g. stale ls-remote results)
+mise cache clear
+
+; Gotchas
+; - Config files mise didn't write (cloned repos) are ignored until you run mise trust.
+;   Error: "Config files in ... are not trusted".
+; - mise.toml in a project beats the global config. mise use -g warns
+;   "... overrides the global config" when that happens.
+; - mise shell fails without activation ("mise is not activated in this shell session").
+;   mise x works without it.
+; - "No version is set for shim: X" means the shim exists but no config activates
+;   the tool here. Add it with mise use -g, or run mise x <tool>@<version> -- X.
+; - mise upgrade and mise unuse don't delete old versions at once. They are
+;   scheduled for pruning after 24h.
+; - Installed via apt: mise self-update is disabled. Use apt install --only-upgrade mise.
+; - Task args via Tera {{arg()}} are deprecated (removed 2027.5). Use the usage field:
+;   usage = 'arg "[who]" default="world"', run = 'echo ${usage_who?}'
+; - Executable files in mise-tasks/ are tasks too. Add #MISE description="..." for a description.
+; - [env] supports _.file = ".env" (load a dotenv) and _.path = ["./bin"] (prepend PATH).
+
+$ tool: mise ls --installed 2>/dev/null | awk '{print $1}' | sort -u; printf 'node\npython\ngo\nrust\nuv\njq\nyq\nterraform\n'
+$ version: mise ls-remote <tool> 2>/dev/null | sort -rV | head -50; echo latest
+$ package: printf 'ms-fabric-cli\nhttpie\n'
+$ owner_repo: printf 'BurntSushi/ripgrep\nsharkdp/fd\n'
+$ bin: mise bin-paths 2>/dev/null | xargs -I{} ls {} 2>/dev/null | sort -u
+$ dir: printf '.\n'; ls -d */ 2>/dev/null
+$ task: mise tasks ls --no-header 2>/dev/null | awk '{print $1}'
+$ var: mise set 2>/dev/null | awk '{print $1}'
+$ setting: printf 'experimental\njobs\npypi.uvx\nidiomatic_version_file_enable_tools\n'
+$ setting_value: printf 'true\nfalse\n'
