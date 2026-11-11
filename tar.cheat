@@ -2,13 +2,19 @@
 
 ; Written for GNU tar 1.35.
 ; c create, x extract, t list, f <file> archive file (- = stdin/stdout),
-; z gzip, J xz, j bzip2, a pick by extension, v verbose, C <dir> change directory first.
+; z gzip, J xz, j bzip2, --zstd zstd, a pick by extension, v verbose, C <dir> change directory first.
 
 # Create a .tar.gz from a directory
 tar -czf <archive>.tar.gz <dir>
 
-# Create an archive, choosing compression from the extension (.tar.gz, .tar.xz, .tar.bz2)
+# Create an archive, choosing compression from the extension (.tar.gz, .tar.zst, .tar.xz, .tar.bz2)
 tar -caf <archive_name> <dir>
+
+# Create a .tar.zst (fast, small; good default)
+tar --zstd -cf <archive>.tar.zst <dir>
+
+# Create a .tar.zst with a higher zstd level, using all cores
+tar -I 'zstd -<zstd_level> -T0' -cf <archive>.tar.zst <dir>
 
 # Create a .tar.xz (smaller, slower)
 tar -cJf <archive>.tar.xz <dir>
@@ -39,6 +45,9 @@ mkdir -p <dir> && tar -xf <tarfile> -C <dir>
 
 # Extract, dropping the top-level folder
 tar -xf <tarfile> -C <dir> --strip-components=1
+
+# Extract a .tar.zst made with zstd --long=31 (needs the same flag)
+tar -I 'zstd -d --long=31' -xf <tarfile>
 
 # Extract only some files
 tar -xf <tarfile> '<entry>'
@@ -74,15 +83,19 @@ tar -czf - <dir> | ssh <host> 'tar -xzf - -C <remote_dir>'
 ; - -f takes the next word as the archive name, so keep f last in a bundle. tar -cfz out.tgz dir
 ;   writes an archive named "z" and tries to add out.tgz to it.
 ; - Entry names must match exactly as tar -t shows them (often with a leading ./ or folder/).
-; - zstd isn't installed here. With it, use --zstd or .tar.zst with -a.
+; - -I / --use-compress-program takes the whole command in quotes: -I 'zstd -19 -T0'.
+;   For extraction tar adds -d itself, but flags like --long must still be given.
+; - tar --zstd uses zstd's default level 3. Set ZSTD_CLEVEL=19 (and ZSTD_NBTHREADS=$(nproc))
+;   in the environment to change it without -I. ZSTD_NBTHREADS=0 means no worker threads, not all cores.
 
-$ tarfile: ls *.tar *.tar.gz *.tgz *.tar.xz *.txz *.tar.bz2 *.tbz2 2>/dev/null
+$ tarfile: ls *.tar *.tar.gz *.tgz *.tar.zst *.tzst *.tar.xz *.txz *.tar.bz2 *.tbz2 2>/dev/null
 $ archive: echo "$(basename "$PWD")-$(date +%F)"
-$ archive_name: n="$(basename "$PWD")-$(date +%F)"; printf '%s\n' "$n.tar.gz" "$n.tar.xz" "$n.tar.bz2"
+$ archive_name: n="$(basename "$PWD")-$(date +%F)"; printf '%s\n' "$n.tar.gz" "$n.tar.zst" "$n.tar.xz" "$n.tar.bz2"
 $ dir: printf '.\n'; ls -d */ 2>/dev/null
 $ dest_dir: ls -d */ 2>/dev/null
 $ file: ls -p | grep -v /
 $ entry: tar -tf <tarfile> 2>/dev/null
+$ zstd_level: printf '19\n9\n12\n'
 $ glob: printf '*.py\n*.txt\n*.json\n*.log\n'
 $ exclude_glob: printf '*.log\n__pycache__\n.venv\n*.tmp\n'
 $ remote_dir: printf '~\n/tmp\n'

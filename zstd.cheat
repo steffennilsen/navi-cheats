@@ -1,0 +1,133 @@
+% zstd, zstandard, zst, compress, decompress, unzstd, zstdcat
+
+; Written for zstd 1.5.7. Default level is 3 (1-19, up to 22 with --ultra).
+; Unlike gzip, zstd KEEPS the input file unless you pass --rm.
+; For directories, combine it with tar (see tar.cheat).
+
+# Compress a file (writes file.zst, keeps the original)
+zstd <file>
+
+# Compress and delete the original
+zstd --rm <file>
+
+# Decompress (writes file without .zst, keeps the .zst)
+zstd -d <zstfile>
+
+# Decompress to a specific name
+zstd -d <zstfile> -o <output>
+
+# Compress with a higher level, using all CPU cores
+zstd -<level> -T0 <file>
+
+# Compress with maximum compression (slow, needs more memory)
+zstd --ultra -22 -T0 <file>
+
+# Compress as fast as possible (bigger output)
+zstd --fast=<fast_level> <file>
+
+# Overwrite an existing output file
+zstd -f <file>
+
+# Compress to stdout
+zstd -c <file> > <file>.zst
+
+# Compress a command's output
+<cmd> | zstd -T0 > <output>.zst
+
+# Print a .zst to stdout
+zstdcat <zstfile>
+
+# Look at the start of a .zst
+zstdcat <zstfile> | head -n 20
+
+# Page through a .zst
+zstdless <zstfile>
+
+# Search inside a .zst
+zstdgrep '<pattern>' <zstfile>
+
+# Show compressed/uncompressed size, ratio and checksum
+zstd -l <zstfile>
+
+# Show frame details (window size, checksum, ...)
+zstd -lv <zstfile>
+
+# Test that a .zst is valid
+zstd -t <zstfile>
+
+# Compress every file in a directory tree (each file gets its own .zst)
+zstd -r <dir>
+
+# Compress files into another directory
+zstd --output-dir-flat <out_dir> <file>
+
+# Compress a list of files (one path per line in a file)
+zstd --filelist <list_file>
+
+# Skip files that are already compressed (.zst, .gz, .jpg, ...)
+zstd --exclude-compressed <file>
+
+# Decompress a .gz or .xz file with zstd
+zstd -d <gzfile> -o <output>
+
+# Write gzip-format output (readable by gunzip) with zstd
+zstd --format=gzip <file> -o <file>.gz
+
+# Compress big files with similar data far apart (long-distance matching)
+zstd --long=31 -T0 <file>
+
+# Decompress a --long=31 file
+zstd -d --long=31 <zstfile>
+
+# Train a dictionary from many small similar files (e.g. JSON records)
+zstd --train <sample_dir>/* -o <dict>
+
+# Compress a small file with a dictionary
+zstd -D <dict> <file>
+
+# Decompress with the same dictionary
+zstd -d -D <dict> <zstfile>
+
+# Make a binary diff: compress a new version against an old one
+zstd --patch-from=<old_file> <file> -o <patch>.zst
+
+# Rebuild the new version from the old file and the patch
+zstd -d --patch-from=<old_file> <patch>.zst -o <output>
+
+# Benchmark compression levels 1 to N on a file
+zstd -b1 -e<level> <file>
+
+# Set the level for zstd and tar --zstd through the environment
+ZSTD_CLEVEL=<level> ZSTD_NBTHREADS=$(nproc) <cmd>
+
+; Gotchas
+; - Writing compressed data to the terminal aborts ("stdout is a console, aborting").
+;   Pipe or redirect it, or use -c.
+; - An existing output file gives an overwrite prompt. In scripts it answers no and exits 1.
+;   Add -f.
+; - Levels 20-22 need --ultra. Without it, zstd prints "compression level higher than max,
+;   reduced to 19".
+; - Files with a window over 128 MiB (--long=28 and up, on big inputs) don't decompress
+;   without the same flag: "Window size larger than maximum ... Use --long=28".
+; - A dictionary-compressed file needs the same dictionary to decompress ("Dictionary mismatch").
+;   Dictionaries only help small files: one 66 B record went to 32 B with one, 79 B without.
+; - zstd -r keeps the originals next to the .zst files. zstd -dr then warns
+;   "unknown suffix" for each non-.zst file it finds.
+; - zstd will compress a .zst again (file.zst.zst) unless you pass --exclude-compressed.
+; - --filelist can't read from a pipe or process substitution. Write the list to a file.
+; - -T0 uses all physical cores (6 of 12 here). The default is 1 thread.
+;   ZSTD_NBTHREADS=0 does NOT mean all cores: it gives 0 worker threads. Use a number.
+
+$ file: ls -p | grep -v / | grep -v '\.zst$'
+$ zstfile: ls *.zst *.tzst 2>/dev/null
+$ gzfile: ls *.gz *.xz 2>/dev/null
+$ output: echo "output-$(date +%F)"
+$ level: printf '19\n3\n9\n12\n'
+$ fast_level: printf '1\n3\n5\n'
+$ dir: printf '.\n'; ls -d */ 2>/dev/null
+$ out_dir: ls -d */ 2>/dev/null
+$ list_file: ls -p | grep -v /
+$ sample_dir: ls -d */ 2>/dev/null | sed 's|/$||'
+$ dict: ls *.dict dict 2>/dev/null; echo dictionary
+$ old_file: ls -p | grep -v /
+$ patch: echo "patch-$(date +%F)"
