@@ -1,0 +1,159 @@
+% bat, batcat, cat, view, syntax, highlight, pager, less, print
+
+; Written for bat 0.25. Debian/Ubuntu install it as batcat (see Gotchas).
+; On a terminal, bat adds a grid and colors and pages long output.
+; Piped, it prints the file unchanged, like cat.
+
+# Show a file with syntax highlighting
+bat <file>
+
+# Show a file without line numbers or grid (good for copying)
+bat -p <file>
+
+# Show a file without decorations or pager (a colored cat)
+bat -pp <file>
+
+# Show a file with line numbers only
+bat -n <file>
+
+# Show a file without the pager, but keep the grid
+bat --paging=never <file>
+
+# Show several files with headers and a line between them
+bat --style=header,rule <file> <file2>
+
+# Show a file with everything, including its size
+bat --style=full <file>
+
+# Remove or add one style component, keep the rest
+bat --style=-grid,+header-filesize <file>
+
+# Show a range of lines (30:40, :40, 40:, 30:+10)
+bat -r <range> <file>
+
+# Show two ranges, with a cut line between them
+bat -r <range> -r <range2> <file>
+
+# Highlight lines
+bat -H <range> <file>
+
+# Show only the lines changed since the git index
+bat --diff <file>
+
+# Show only the changed lines, with more context
+bat --diff --diff-context <context> <file>
+
+# Show the changed lines of all modified files in this directory
+git diff --name-only --relative --diff-filter=d -z | xargs -0 bat --diff
+
+# Show a file as it was in a commit
+git show <commit>:./<file> | bat --file-name "<file>"
+
+# Highlight with a given language
+bat -l "<language>" <file>
+
+# Highlight a command's output
+<cmd> | bat -l "<language>" -p
+
+# Highlight JSON from a URL
+curl -sS <url> | bat -l json -p
+
+# Highlight a command's --help
+<cmd> --help 2>&1 | bat -l help -p
+
+# Follow a log with highlighting
+tail -f <file> | bat --paging=never -l log
+
+# Read a man page in bat
+MANROFFOPT=-c MANPAGER="sh -c 'col -bx | bat -l man -p'" man <page>
+
+# Use bat for all man pages (put in ~/.bashrc)
+export MANROFFOPT=-c MANPAGER="sh -c 'col -bx | bat -l man -p'"
+
+# Preview files in fzf
+fzf --preview 'bat -n --color=always {}'
+
+# Keep colors and decorations when piping
+bat -f <file> | <cmd>
+
+# Keep colors only when piping
+bat -p --color=always <file> | less -R
+
+# Show tabs, spaces, newlines and control characters
+bat -A <file>
+
+# Set the tab width (0 = keep tabs)
+bat --tabs <tab_width> <file>
+
+# Squeeze repeated empty lines
+bat -s <file>
+
+# Don't wrap long lines (the pager scrolls sideways)
+bat -S <file>
+
+# Treat a file pattern as a language
+bat -m '<glob>:<language>' <file>
+
+# Ignore an extension when detecting the language (app.json.dev → JSON)
+bat --ignored-suffix <suffix> <file>
+
+# List languages and the extensions they match
+bat --list-languages
+
+# Show a sample of every theme
+bat --list-themes --color=always | less -R
+
+# Use a theme
+bat --theme="<theme>" <file>
+
+# Set the theme through the environment
+BAT_THEME="<theme>" bat <file>
+
+# Create the config file (one command-line option per line)
+bat --generate-config-file
+
+# Print the config file's path
+bat --config-file
+
+# Ignore the config file for one run
+bat --no-config <file>
+
+# Load your own themes and syntaxes from $(bat --config-dir)/themes and /syntaxes
+bat cache --build
+
+# Go back to the built-in themes and syntaxes
+bat cache --clear
+
+; Gotchas
+; - Debian/Ubuntu: the binary is batcat. A shell alias doesn't reach scripts, xargs, fzf previews
+;   or commands that navi runs itself ("bat: command not found"). Use a symlink instead:
+;   ln -s /usr/bin/batcat ~/.local/bin/bat
+; - Colors and decorations are dropped when piped. -f (--force-colorization) can't be combined
+;   with --color. For decorations without color: --decorations=always --color=never.
+; - --diff prints nothing for unchanged and untracked files. Outside a git repo it prints an
+;   empty frame. All exit 0.
+; - No negative ranges in 0.25: -r -3: is an error. Use tail -n 3 <file> | bat -l <language>.
+; - -r 5:+1 prints two lines (5 and 6).
+; - -l takes a name or an extension (py), but -m needs the full name: '*.x:Python' works,
+;   '*.x:py' gives "unknown syntax".
+; - A wrong -l fails only when colors are on. Piped, it exits 0.
+; - An unknown theme is only a warning and falls back to the default.
+; - -S doesn't cut lines: it turns off wrapping, and with --paging=never the terminal wraps anyway.
+; - ANSI codes in the input are passed through. Use --strip-ansi=always, which needs color on
+;   (a plain pipe still passes them through).
+; - Binary files aren't printed on a terminal, but are when piped. Use -A to look at them.
+; - Man pages show garbage like 1mNAME0m without MANROFFOPT=-c.
+; - BAT_STYLE beats the config file, and the command line beats both.
+
+$ file: ls -p | grep -v /
+$ file2: ls -p | grep -v /
+$ range: printf '1:20\n:40\n40:\n30:+10\n'
+$ range2: printf '100:120\n200:\n'
+$ context: printf '2\n5\n10\n'
+$ commit: git log --oneline -20 2>/dev/null | awk '{print $1}'
+$ language: $(command -v bat || command -v batcat) --list-languages | cut -d: -f1
+$ theme: $(command -v bat || command -v batcat) --list-themes | sed 's/ (default.*//'
+$ tab_width: printf '2\n4\n8\n0\n'
+$ glob: printf '*.conf\n*.build\n.myignore\n'
+$ suffix: printf '.dev\n.local\n.tmpl\n'
+$ page: printf 'bash\ngit-add\nfind\n'

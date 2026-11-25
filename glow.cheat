@@ -1,0 +1,104 @@
+% glow, markdown, md, render, view, readme, tui, pager
+
+; Written for glow 2.1.1. glow FILE prints, glow -p FILE pages, glow or glow DIR opens the TUI.
+; TUI keys: / find, Enter open, e edit, r refresh, Esc back, c copy contents, ? help, q quit.
+; Config: ~/.config/glow/glow.yml
+
+# Render a markdown file
+glow <mdfile>
+
+# Render in the pager ($PAGER)
+glow -p <mdfile>
+
+# Open a file in the TUI (scroll, e to edit, c to copy)
+glow -t <mdfile>
+
+# Open a file in the TUI with line numbers
+glow -t -l <mdfile>
+
+# Browse the markdown files in this directory and below
+glow
+
+# Browse the markdown files in a directory
+glow <dir>
+
+# Browse hidden and ignored files too
+glow -a <dir>
+
+# Wrap at a given width
+glow -w <width> <mdfile>
+
+# Use the full width of the terminal (2 columns go to the margin)
+glow -w $(($(tput cols) - 2)) <mdfile>
+
+# Render with another style
+glow -s <style> <mdfile>
+
+# Render with a custom style (glamour JSON)
+glow -s <style_json> <mdfile>
+
+# Render to plain text, without wrapping or trailing spaces
+glow -s notty -w 0 <mdfile> > <output>
+
+# Keep colors when piping
+CLICOLOR_FORCE=1 glow -s dark <mdfile> | less -R
+
+# Render a command's output
+<cmd> | glow -
+
+# Render several files (glow takes one at a time)
+cat <mdfile> <mdfile2> | glow -
+
+# Render a file as it was in a commit
+git show <commit>:./<mdfile> | glow -
+
+# Render a project's README from GitHub
+glow github.com/<owner_repo>
+
+# Render a project's README from GitLab
+glow gitlab://<owner_repo>
+
+# Render markdown from a URL
+glow <url>
+
+# Render a GitHub pull request's description (needs gh)
+gh pr view <pr> --json body --jq .body | glow -
+
+# Preview markdown files in fzf
+find . -name '*.md' | fzf --preview 'CLICOLOR_FORCE=1 glow -s dark -w $FZF_PREVIEW_COLUMNS {}'
+
+# Render in a loop or script (</dev/null is needed, see Gotchas)
+glow <mdfile> </dev/null
+
+# Edit the config file in $EDITOR (created if missing)
+glow config
+
+; Gotchas
+; - If stdin is a pipe, glow reads it and IGNORES the file argument. In a while-read loop it
+;   renders the rest of the list. If the pipe stays open, it hangs. Add </dev/null.
+; - glow takes one file: "accepts at most 1 arg(s), received 2". Use cat ... | glow -.
+; - Without -w the width comes from the config (80 in the generated file). -w 0 turns wrapping
+;   off, so the terminal breaks lines mid-word.
+; - Widths don't include the margin: -w 70 gives lines of 72 columns, so -w "$(tput cols)"
+;   overflows.
+; - Lines are padded with spaces to the width. -w 0 gives no padding.
+; - --config had no effect on width or style here, and a missing file isn't an error.
+;   Setting XDG_CONFIG_HOME (dir holding glow/glow.yml) or GLOW_WIDTH works.
+; - Wide tables are cut with … instead of wrapped. Use a larger -w.
+; - Piped, the default style has no color (as notty). With -s dark there are still no colors,
+;   only bold etc. CLICOLOR_FORCE=1 with -s dark gives both.
+; - -n (--preserve-new-lines) made no difference: single line breaks are kept anyway.
+; - -p and -t can't be combined.
+; - Without a terminal, glow and glow DIR fail: "could not open a new TTY".
+; - YAML front matter is hidden. Images show as "Image: alt → path".
+; - Other files are rendered as one code block, without markdown.
+
+$ mdfile: find . -name '*.md' -not -path '*/.git/*' -not -path '*/node_modules/*' 2>/dev/null | sed 's|^\./||'
+$ mdfile2: find . -name '*.md' -not -path '*/.git/*' -not -path '*/node_modules/*' 2>/dev/null | sed 's|^\./||'
+$ dir: printf '.\n'; ls -d */ 2>/dev/null
+$ width: printf '80\n100\n120\n0\n'
+$ style: printf 'dark\nlight\nnotty\nascii\ndracula\ntokyo-night\npink\nauto\n'
+$ style_json: ls *.json 2>/dev/null
+$ output: echo "output-$(date +%F).txt"
+$ commit: git log --oneline -20 2>/dev/null | awk '{print $1}'
+$ owner_repo: printf 'charmbracelet/glow\ndenisidoro/navi\n'
